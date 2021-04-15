@@ -11,7 +11,7 @@
 
 Controller Arduino(CONTROLLER_ID);
 Radio Icom(RADIO);
-LEDArcBoard LEDArc(0);
+LEDArcBoard LEDArc(0, true, true);
 
 unsigned long startMillis, stopMillis, diffMillis;
 
@@ -90,33 +90,31 @@ void setup()
 #endif
 
   for (;;) {
-    digitalWrite(STORE_PIN, LOW);
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, 0xff); // 1st red
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, 0); // 1st green
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, 0); // 1st blue
-    shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, 0xff); // 2nd red
-    shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, 0); // 2nd green
-    shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, 0); // 2nd blue
-    digitalWrite(STORE_PIN, HIGH);
-    delay(500);
-    digitalWrite(STORE_PIN, LOW);
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, 0); // 1st red
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, 0xff); // 1st green
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, 0); // 1st blue
-    shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, 0); // 2nd red
-    shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, 0xff); // 2nd green
-    shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, 0); // 2nd blue
-    digitalWrite(STORE_PIN, HIGH);
-    delay(500);
-    digitalWrite(STORE_PIN, LOW);
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, 0); // 1st red
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, 0); // 1st green
-    shiftOut(DATA_PIN, CLOCK_PIN, MSBFIRST, 0xff); // 1st blue
-    shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, 0); // 2nd red
-    shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, 0); // 2nd green
-    shiftOut(DATA_PIN, CLOCK_PIN, LSBFIRST, 0xff); // 2nd blue
-    digitalWrite(STORE_PIN, HIGH);
-    delay(500);
+    for (int i=0; i<=16; i++) {
+      for (int j=3; j>=0; j--) {
+        if (i+j > 16) {
+          continue;
+        }
+        LEDArc.set_current_val(i+j);
+        LEDArc.update_leds();
+        delay(100);
+      }
+    }
+    for (int i=0; i<30; i++) {
+      LEDArc.update_leds();
+      delay(100);
+    }
+    for (int i=15; i>=0; i--) {
+      LEDArc.set_current_val(i);
+      LEDArc.update_leds();
+      delay(100);
+      LEDArc.update_leds();
+      delay(100);
+    }
+    for (int i=0; i<30; i++) {
+      LEDArc.update_leds();
+      delay(100);
+    }
   }
 
 // LSB_Button_LED.on();delay (140) ;LSB_Button_LED.off();
