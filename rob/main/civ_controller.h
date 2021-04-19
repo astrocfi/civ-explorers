@@ -1,22 +1,52 @@
-#ifndef __CONTROLLER_H_
-#define __CONTROLLER_H_
+/*******************************************************************************
+ * Author: Robert S. French <rfrench@rfrench.org>
+ * Derived from work by John Rowling
+ *
+ * This work is licensed under the Creative Commons Attribution-NonCommercial
+ * 4.0 International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to Creative
+ * Commons, PO Box 1866, Mountain View, CA 94042, USA.
+ ******************************************************************************/
+
+#ifndef __CIV_CONTROLLER_H__
+#define __CIV_CONTROLLER_H__
 
 #include <Arduino.h>
 
-class Controller
+#include <RingBuf.h>
+
+unsigned long startMillis, stopMillis, diffMillis;
+
+byte RX1_MESSAGE_BUFFER[48];
+byte TX1_MESSAGE_BUFFER[20];  // used to record WHAT CI-V message was sent (up to 20 characters)... is that enough ?
+
+byte RX1_COUNTER = 0;
+byte TX1_COUNTER = 0;
+
+
+#define CIV_RX_SOLICITED_BUFFER_FILL_DELAY  30  // was 26 if delay too short the reply might be cropped and appear to be a collision !
+#define CIV_RX_UNSOLICITED_BUFFER_FILL_DELAY  10  // was 50
+#define UNSOLICITED_HOLD_OFF 25
+#define HOLDOFF_RATIO 4    //  was 45 number of loops between Sending CI-V messages poling the radio   .... about 22s per loop
+
+extern byte ci_v_rx_DATA[15];
+extern RingBuf<uint8_t, 79> ci_v_ring_Buffer;
+extern byte ci_v_TX1_RX1_MESSAGEs[35][14];
+
+class CIVController
 {
   public:
-    Controller(byte id);
+    CIVController(byte id);
     void begin();
 
     byte get_id();
     void set_id(byte id);
 
-    void set_CONTROLLER_Operating_Mode(int8_t);  // not used as intended
-    int8_t get_CONTROLLER_Operating_Mode();
+    void set_controller_operating_mode(int8_t);  // not used as intended
+    int8_t get_controller_operating_mode();
 
-    void set_CONTROLLER_LOOP_interval(long); // not used
-    long get_CONTROLLER_LOOP_interval();
+    void set_controller_loop_interval(long); // not used
+    long get_controller_loop_interval();
 
     void set_local_IP_port_and_MAC_swap(bool);
     bool get_local_IP_port_and_MAC_swap();
@@ -50,33 +80,17 @@ class Controller
     byte set_CI_V_TX_HOLDOFF_counter(byte count);  // time2live byte
     byte read_CI_V_TX_HOLDOFF_counter();     // read the current value of the internal counter
 
-    void set_dayz(byte dayz);
-    byte get_dayz();
-
-    void set_monthz(byte monthz);
-    byte get_monthz();
-
-    void set_yearLowz(byte yearLowz);
-    byte get_yearLowz();
-
-    void set_yearHighz(byte yearHighz);
-    byte get_yearHighz();
-
-    void set_hourz(byte hourz);
-    byte get_hourz();
-
-    void set_minz(byte minz);
-    byte get_minz();
+    byte CIVController::read_unsolicited_message();
 
   private:
     byte _id;
 
-    long _CONTROLLER_LOOP_interval; // new
+    long _controller_loop_interval; // new
 
-    int8_t _CONTROLLER_operating_mode;
-    byte _CONTROLLER_hardware_local_remote_toggle;
-     // define pin to test for high / low which sets ip & mac via :  bool _CONTROLLER_local_IP
-    bool _CONTROLLER_local_IP_port_mac_flag;
+    int8_t _controller_operating_mode;
+    byte _controller_hardware_local_remote_toggle;
+     // define pin to test for high / low which sets ip & mac via :  bool _controller_local_IP
+    bool _controller_local_IP_port_mac_flag;
      // TRUE = local IP, port & MAC    FALSE = remote IP, port & MAC
 
     boolean _listen_for_CI_V_message_flag;
@@ -101,4 +115,4 @@ class Controller
     byte    _CI_V_time2live;
 };
 
-#endif /* __CONTROLLER_H_ */
+#endif /* __CIV_CONTROLLER_H__ */

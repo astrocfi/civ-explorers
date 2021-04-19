@@ -1,6 +1,15 @@
+/*******************************************************************************
+ * Author: Robert S. French <rfrench@rfrench.org>
+ * Derived from work by John Rowling
+ *
+ * This work is licensed under the Creative Commons Attribution-NonCommercial
+ * 4.0 International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to Creative
+ * Commons, PO Box 1866, Mountain View, CA 94042, USA.
+ ******************************************************************************/
+
 #include "config.h"
-#include "civ.h"
-#include "controller.h"
+#include "civ_controller.h"
 #include "radio.h"
 #include "led_arc_board.h"
 #include "s_meter.h"
@@ -9,34 +18,12 @@
 #include <Arduino.h>
 #include <SoftwareSerial.h>
 
-Controller Arduino(CONTROLLER_ID);
+CIVController CIV(0);
 Radio Icom(RADIO);
-LEDArcBoard LEDArc(0, true, true);
-
-unsigned long startMillis, stopMillis, diffMillis;
-
-byte RX1_MESSAGE_BUFFER[48];
-byte TX1_MESSAGE_BUFFER[20];  // used to record WHAT CI-V message was sent (up to 20 characters)... is that enough ?
-
-byte RX1_COUNTER = 0;
-byte TX1_COUNTER = 0;
-
-byte RX3_MESSAGE_BUFFER[48];  // comms from UNO ... will hold settings / changes for objects attributes
-byte TX3_MESSAGE_BUFFER[48];  // comms to UNO
-
-byte RX3_COUNTER = 0;
-byte TX3_COUNTER = 0;
-
-byte READ1_COUNTER = 0 ;
+LEDArcBoard LEDArc(0);
 
 #define COMMUTATOR 5
 byte commutator = 0 ;
-
-#ifdef PRO_MINI
-SoftwareSerial Soft_Serial(CI_V_RX_pin, CI_V_TX_pin);
-#endif
-
-
 
 void setup()
 {
@@ -49,15 +36,10 @@ void setup()
   WhiteLED.begin();
 #endif
 
-  // Icom.begin();
-  // LEDArc.begin() ;
-  // Arduino.begin() ;
-
- // LOCAL_KBD.begin() ;
- // LSB_Button_LED.begin();
- // AM_Button_LED.begin();
- // USB_Button_LED.begin();
- // CW_Button_LED.begin();
+  util_init();
+  CIV.begin();
+  Icom.begin();
+  LEDArc.begin() ;
 
 #ifdef MEGA2560
   Serial.begin(57600);    //Start the serial connection with the laptop
@@ -65,79 +47,87 @@ void setup()
   Serial3.begin(9600);    //Start the serial3 connection with the controller / REMOTE_KBD
 #endif
 #ifdef PRO_MINI
-  pinMode(CI_V_RX_pin, INPUT);
-  pinMode(CI_V_TX_pin, OUTPUT);
   Serial.begin(19200);
-  Soft_Serial.begin(57600);    //print out to other board
-  Soft_Serial.listen();
 #endif
 
-  pinMode(PWM_PIN, OUTPUT);
-  pinMode(STORE_PIN, OUTPUT);
-  pinMode(CLOCK_PIN, OUTPUT);
-  pinMode(DATA_PIN, OUTPUT);
-  analogWrite(PWM_PIN, 220);
-  digitalWrite(STORE_PIN, HIGH);
-
 #ifdef PRO_MINI
-  Serial.println(REV_STRING);
-  Soft_Serial.println(REV_STRING);
-  Soft_Serial.println(Icom.get_id(),HEX);
+  host_println(REV_STRING);
 #endif
 #ifdef MEGA2560
   Serial.println(REV_STRING);
-  Serial.println(Icom.get_id(), HEX);
 #endif
 
+#define DEBUG_LED_TEST_2
+#ifdef DEBUG_LED_TEST_1
+  unsigned long cur_time;
   for (;;) {
+    LEDArc.set_led_brightness(240);
     for (int i=0; i<=16; i++) {
       for (int j=3; j>=0; j--) {
         if (i+j > 16) {
           continue;
         }
         LEDArc.set_current_val(i+j);
-        LEDArc.update_leds();
-        delay(100);
+        cur_time = millis();
+        while (millis() < cur_time+200)
+          LEDArc.update_leds();
       }
     }
-    for (int i=0; i<30; i++) {
+    cur_time = millis();
+    while (millis() < cur_time+1000)
       LEDArc.update_leds();
-      delay(100);
-    }
+    LEDArc.set_led_brightness(250);
     for (int i=15; i>=0; i--) {
       LEDArc.set_current_val(i);
       LEDArc.update_leds();
-      delay(100);
-      LEDArc.update_leds();
-      delay(100);
+      cur_time = millis();
+      while (millis() < cur_time+200)
+        LEDArc.update_leds();
     }
-    for (int i=0; i<30; i++) {
+    while (millis() < cur_time+1000)
       LEDArc.update_leds();
-      delay(100);
-    }
   }
+#endif /* DEBUG_LED_TEST_1 */
 
-// LSB_Button_LED.on();delay (140) ;LSB_Button_LED.off();
-// AM_Button_LED.on();delay (140) ;AM_Button_LED.off();
-// USB_Button_LED.on();delay (140) ; USB_Button_LED.off();
-// CW_Button_LED.on(); delay (140) ;CW_Button_LED.off();
+#ifdef DEBUG_LED_TEST_2
+  unsigned long cur_time;
+  LEDArc.set_led_brightness(240);
+  for (;;) {
+    LEDArc.set_current_val(0);
+    cur_time = millis();
+    while (millis() < cur_time+5000)
+      LEDArc.update_leds();
+    LEDArc.set_current_val(16);
+    cur_time = millis();
+    while (millis() < cur_time+5000)
+      LEDArc.update_leds();
+    LEDArc.set_current_val(12);
+    cur_time = millis();
+    while (millis() < cur_time+5000)
+      LEDArc.update_leds();
+    LEDArc.set_current_val(6);
+    cur_time = millis();
+    while (millis() < cur_time+5000)
+      LEDArc.update_leds();
+  }
+#endif /* DEBUG_LED_TEST_2
 
- #ifdef MEGA2560
+#ifdef MEGA2560
   WhiteLED.on();delay(140) ; WhiteLED.off();delay(10) ;
   Yellow1LED.on();delay(140) ;Yellow1LED.off(); delay(10) ;
   Yellow2LED.on(); delay(140) ; Yellow2LED.off(); delay(10) ;
   GreenLED.on();  delay(140) ;  GreenLED.off();delay(10) ;
   BlueLED.on();delay(140) ;  BlueLED.off();delay(10) ;
   RedLED.on(); delay(140) ; RedLED.off();delay(10) ;
- #endif
+#endif
 
-Arduino.set_listen_for_CI_V_message_flag(false) ;            // init sets to false ...
-Arduino.set_just_sent_CI_V_message_flag(false) ;           // init sets to false ...
-Arduino.set_CI_V_TX_inhibit_flag(true) ;                 // init sets to true ...
-Arduino.set_TX_MESSAGE_NOT_CORRUPT_flag(false) ;  // init sets to false ...
-Arduino.set_collision_flag(false) ;                  // init sets to false ...
-Arduino.set_tx_jam_code_flag(false) ;              // init sets to false ...
-Arduino.set_rx_jam_code_flag(false) ;            // init sets to false ...
+CIV.set_listen_for_CI_V_message_flag(false) ;            // init sets to false ...
+CIV.set_just_sent_CI_V_message_flag(false) ;           // init sets to false ...
+CIV.set_CI_V_TX_inhibit_flag(true) ;                 // init sets to true ...
+CIV.set_TX_MESSAGE_NOT_CORRUPT_flag(false) ;  // init sets to false ...
+CIV.set_collision_flag(false) ;                  // init sets to false ...
+CIV.set_tx_jam_code_flag(false) ;              // init sets to false ...
+CIV.set_rx_jam_code_flag(false) ;            // init sets to false ...
 
 
 int flush_count ;
@@ -152,25 +142,25 @@ int flush_count ;
                       if ( flush_count >= 1046 ) { break ; } // bug out  1046
                       }
 
-                Soft_Serial.print ( "flush count : ") ;
-                Soft_Serial.println (flush_count);
+                host_print ( "flush count : ") ;
+                host_println (flush_count);
 
 //..........................................
 
-                Soft_Serial.print ( "flush 1 : ") ;
-                Soft_Serial.print (RX1_COUNTER = Serial.available());
+                host_print ( "flush 1 : ") ;
+                host_print (RX1_COUNTER = Serial.available());
 
                 Serial.read(); // empty RX hardware buffer now
                 delay(100) ;
-                Soft_Serial.print ( "flush 2 : ") ;
-                Soft_Serial.print (RX1_COUNTER = Serial.available());
+                host_print ( "flush 2 : ") ;
+                host_print (RX1_COUNTER = Serial.available());
 
                 /*
                 RX1_COUNTER = Serial.available();
                 Serial.read(); // empty RX hardware buffer now
                 delay(100) ;
                 */
-#endif
+// #endif
 
 #ifdef MEGA2560
                 RX1_COUNTER = Serial1.available();
@@ -190,12 +180,12 @@ int flush_count ;
                   delay (200) ;
    #endif
 
-                  Arduino.set_CI_V_TX_inhibit_flag(false) ; // ..... TRANSMIT INHIBIT DISABLED
+                  CIV.set_CI_V_TX_inhibit_flag(false) ; // ..... TRANSMIT INHIBIT DISABLED
                   delay (100) ;
 
                   tx_ci_v_via_serial_ttl(21) ; // send CI-V message to request date
                   delay (100) ;
-                  Arduino.set_CI_V_TX_inhibit_flag(true) ; // ..... TRANSMIT INHIBIT ENABLED
+                  CIV.set_CI_V_TX_inhibit_flag(true) ; // ..... TRANSMIT INHIBIT ENABLED
                   delay (100) ;
                   bit_bash(21) ;  // sort out the nibbles
                   delay (100) ;
@@ -216,9 +206,9 @@ int flush_count ;
 //                                  #endif
 //
 //                                   #ifdef PRO_MINI
-//                                   Soft_Serial.print ("dayz = " );
-//                                   Soft_Serial.print (Icom.get_dayz(),DEC);
-//                                   Soft_Serial.print ( "   no radio connected    ") ;
+//                                   host_print ("dayz = " );
+//                                   host_print (Icom.get_dayz(),DEC);
+//                                   host_print ( "   no radio connected    ") ;
 //                                   #endif
 //
 //                                   Icom.set_RADIO_connected(false)  ;
@@ -233,9 +223,9 @@ int flush_count ;
 //                                   #endif
 //
 //                                   #ifdef PRO_MINI
-//                                   Soft_Serial.print ("dayz = " );
-//                                   Soft_Serial.print (Icom.get_dayz(),HEX);
-//                                   Soft_Serial.print ( "    radio connected    ") ;
+//                                   host_print ("dayz = " );
+//                                   host_print (Icom.get_dayz(),HEX);
+//                                   host_print ( "    radio connected    ") ;
 //                                   #endif
 //                                   Icom.set_RADIO_connected(true)  ;
 //
@@ -282,19 +272,19 @@ void loop() {
   // ++++++++++++++++++++++++++++++++++++++++++     MACHINE MODE switch    ++++++++++++++++++++++++++++++++++++++++++++++++
   // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  switch (Arduino.get_CONTROLLER_Operating_Mode())
+  switch (CIV.get_controller_operating_mode())
   {
   case 0:              //   MACHINE FAULT mode
     break;
 
   case 1:              //    MACHINE mode : get NTP
     delay(400);
-    Arduino.set_CONTROLLER_Operating_Mode(4);            // exit this state on next loop
+    CIV.set_controller_operating_mode(4);            // exit this state on next loop
     break;
 
   case 4:              //    MACHINE mode :  CI-V / Ehternet Bridge
     delay(400);
-    Arduino.set_CONTROLLER_Operating_Mode(6);            // exit this state on next loop
+    CIV.set_controller_operating_mode(6);            // exit this state on next loop
     break;
 
   case 6:             // MACHINE DATA mode  ...  stays in '6' after initialisation unless fault detected
@@ -316,9 +306,9 @@ void loop() {
     // ....check THREE CONDITIONS ... FIRST nothing recently sent ...AND (logical AND) ...
     //     SECOND nothing recently received ..i.e. if no bytes in buffer ... 3rd only do it when CI-V holdoff is expired
 
-    if (!Arduino.get_just_sent_CI_V_message_flag()
+    if (!CIV.get_just_sent_CI_V_message_flag()
         && RX1_COUNTER == 0
-        && !Arduino.get_CI_V_TX_HOLDOFF_flag()                 // polling radio and S-meter update is stopped by the holdoff flag too
+        && !CIV.get_CI_V_TX_HOLDOFF_flag()                 // polling radio and S-meter update is stopped by the holdoff flag too
         && Icom.get_RADIO_connected())                 // if radio not connected dayz will be zero therefore inhibit polling
       {
       //                           |
@@ -343,7 +333,7 @@ void loop() {
       // But when VCO rotated and many unsolicited CI-V messages are received STOP polling the radio and STOP listening for NETWORK packets
 
 
-      Arduino.set_CI_V_TX_inhibit_flag(false);                       // ..... TRANSMIT INHIBIT DISABLED .... 9 dec temporary rem out and copy to else below to turn of polling while vco rotated
+      CIV.set_CI_V_TX_inhibit_flag(false);                       // ..... TRANSMIT INHIBIT DISABLED .... 9 dec temporary rem out and copy to else below to turn of polling while vco rotated
       //                  CAN NOW TRANMIT CI-V MESSAGE ...  inhibit is DISABLED .... i.e. false !
       //********************************************************************************************************************************
 
@@ -488,9 +478,9 @@ void loop() {
 // down here if 3 tests plus 1 failed------------>
 
 
-    //Arduino.set_listen_for_CI_V_message_flag(true)... use his to turn on unsoloiced listening
+    //CIV.set_listen_for_CI_V_message_flag(true)... use his to turn on unsoloiced listening
 
-    if (( Arduino.get_just_sent_CI_V_message_flag() == false ) &&    // .....NOTHING recently sent ..AND
+    if (( CIV.get_just_sent_CI_V_message_flag() == false ) &&    // .....NOTHING recently sent ..AND
         (RX1_COUNTER!= 0 )) // .....................................         SOMETHING has recently been received ......this is UN-SOLICITED DATA - MAYBE A BROADCAST MESSAGE - check 'from id' ?
     {          //  unsolicited message processing
                //  ***************************************************************************
@@ -501,21 +491,20 @@ void loop() {
       // break; //switch_off during debug
       delay(CIV_RX_UNSOLICITED_BUFFER_FILL_DELAY);    // was 125ms
 
-      Arduino.set_CI_V_TX_HOLDOFF_counter(UNSOLICITED_HOLD_OFF);    // stop polling
+      CIV.set_CI_V_TX_HOLDOFF_counter(UNSOLICITED_HOLD_OFF);    // stop polling
       // stop scanning buttons
       // stop updating the S-meter LEDs
 
       ci_v_ring_Buffer.clear();
 
       byte udp_count = 0;
-      READ1_COUNTER =  read_Unsolicited_Message();    // empty h/w buffer into rx_buffer and return
+      CIV.read_unsolicited_message();    // empty h/w buffer into rx_buffer and return
       // number of bytes... this needs a specific routine to handle unsolicited data rather than just flushing it ! ... WRITE NEW FUNCTION !
 
       // *********************************************************
       //    send udp packet !
       // *********************************************************
 
-      READ1_COUNTER =0;
       RX1_COUNTER = 0;
 
       // *******************************
@@ -539,7 +528,7 @@ void loop() {
 
 
 
-    if (( Arduino.get_just_sent_CI_V_message_flag() == true ) &&          //...SOMEthing recently sent ..AND
+    if (( CIV.get_just_sent_CI_V_message_flag() == true ) &&          //...SOMEthing recently sent ..AND
         (RX1_COUNTER >= 1 ))           // SOMEthing recently received ..i.e. there are bytes in the rx buffer
                      //... should be both the TX bytes and (by now the Reply) RX bytes this is probably SOLICITED DATA
     {
@@ -553,7 +542,7 @@ void loop() {
     //       NOW check TO / FROM addresses
     // *********************************************************
 
-    if (Arduino.get_collision_flag() == false) {
+    if (CIV.get_collision_flag() == false) {
 
       //TAB_S
     }
@@ -573,7 +562,7 @@ void loop() {
     //       collision occured ?
     //  *********************************************************
 
-    if (Arduino.get_collision_flag() == true) {
+    if (CIV.get_collision_flag() == true) {
 
       //TAB_U
     }
@@ -590,14 +579,14 @@ void loop() {
     // ++++++++++++++++++++++++++++++++++++++++++  End of MACHINE MODE switch   +++++++++++++++++++++++++++++++++++++++++++++
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  }              // end of switch MACHINE CONTROLLER operating mode
+  }              // end of switch MACHINE controller operating mode
 
   // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   // ++++++++++++++++++++++++++++++++++++++++++  End of MACHINE MODE switch   +++++++++++++++++++++++++++++++++++++++++++++
   // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-  Arduino.set_collision_flag(false);     // reset it .. why here
+  CIV.set_collision_flag(false);     // reset it .. why here
 
   // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   // ++++++++++++++++++++++++++++++++++++++++++     COMMUTATOR SWITCH    ++++++++++++++++++++++++++++++++++++++++++++++++++

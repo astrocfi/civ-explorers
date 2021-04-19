@@ -1,7 +1,223 @@
-#include "civ.h"
+/*******************************************************************************
+ * Author: Robert S. French <rfrench@rfrench.org>
+ * Derived from work by John Rowling
+ *
+ * This work is licensed under the Creative Commons Attribution-NonCommercial
+ * 4.0 International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to Creative
+ * Commons, PO Box 1866, Mountain View, CA 94042, USA.
+ ******************************************************************************/
 
-#define CI_V_TX_pin     10  // ?  soft serial ?/?
-#define CI_V_RX_pin     11  // ?  ""
+#include "civ_controller.h"
+#include "util.h"
+
+CIVController::CIVController(byte id)
+{
+  _id = id;
+}
+
+void CIVController::begin()
+{
+  _controller_operating_mode = 1 ;    // now start in mode 1 = initialising
+  _controller_loop_interval = 10 ;
+  _controller_hardware_local_remote_toggle = 0 ;//IP_toggle_pin ;  // use this to read pin31 high or low to set IP and MAC
+  _listen_for_CI_V_message_flag = false ;
+  _receive_flag = false ;
+  _just_sent_CI_V_message_flag = false ;
+  _tx1_inhibit_flag = true ;
+  _tx_verified_flag = false ;
+  _TX_MESSAGE_NOT_CORRUPT_flag = false ;
+  _collision_flag = false ;
+  _tx_jam_code_flag = false ;
+  _rx_jam_code_flag = false ;
+  //holdoff
+  _CI_V_TX_HOLDOFF_flag = false ;
+  _CI_V_time2live  = 0;
+}
+
+
+void CIVController::set_id(byte id)
+{
+  _id = id;
+}
+
+byte CIVController::get_id()
+{
+  return _id;
+}
+
+
+        void CIVController::set_controller_operating_mode(int8_t mode)
+                  {
+                  _controller_operating_mode = mode;
+                   //   - sets operationg MODE value  for THIS device
+                  }
+
+        int8_t CIVController::get_controller_operating_mode()
+                    {
+                return _controller_operating_mode ;
+                //   - gets operationg MODE value  for this device... and returns it
+                    }
+
+        void CIVController::set_controller_loop_interval(long duration)   //
+                      {
+                        _controller_loop_interval=duration;
+                        // allows adjustment of the LED flash rate
+                      }
+
+        long CIVController::get_controller_loop_interval()    //
+                {
+                  return _controller_loop_interval ;
+                }
+
+        void CIVController::set_local_IP_port_and_MAC_swap(bool mode)
+                  {
+                  _controller_local_IP_port_mac_flag = mode ;
+                  // sets local or remote, depending on physical state of pin 31 ( IP_toggle_pin  )
+                  }
+
+        bool CIVController::get_local_IP_port_and_MAC_swap()
+              {
+              return _controller_local_IP_port_mac_flag ;
+              }
+
+      void CIVController::set_listen_for_CI_V_message_flag(bool state)  //
+              {
+                _listen_for_CI_V_message_flag = state ;
+              }
+
+          bool CIVController::get_listen_for_CI_V_message_flag()
+              {
+                return _listen_for_CI_V_message_flag ;
+              }
+
+      void CIVController::set_just_sent_CI_V_message_flag(bool state)  //
+                {
+                  _just_sent_CI_V_message_flag = state ;
+                }
+
+        bool CIVController::get_just_sent_CI_V_message_flag()
+              {
+                return _just_sent_CI_V_message_flag ;
+              }
+
+      void CIVController::set_CI_V_TX_inhibit_flag(bool state)
+                  {
+                    _tx1_inhibit_flag = state ;
+                  }
+
+        bool CIVController::get_CI_V_TX_inhibit_flag()
+                {
+                  return _tx1_inhibit_flag ;
+                }
+
+      void CIVController::set_tx_verified_flag(bool state)
+                    {
+                _tx_verified_flag = state ;
+                    }
+
+        bool CIVController::get_tx_verified_flag()
+                {
+                  return _tx_verified_flag ;
+                }
+
+        void CIVController::set_TX_MESSAGE_NOT_CORRUPT_flag(bool state)
+                      {
+                  _TX_MESSAGE_NOT_CORRUPT_flag = state ;
+                      }
+
+        bool CIVController::get_TX_MESSAGE_NOT_CORRUPT_flag()
+                    {
+                return _TX_MESSAGE_NOT_CORRUPT_flag ;
+                    }
+
+      void CIVController::set_collision_flag(bool state)
+                  {
+                    _collision_flag = state ;
+                  }
+
+        bool CIVController::get_collision_flag()
+              {
+                return _collision_flag ;
+              }
+
+      void CIVController::set_tx_jam_code_flag(bool state)
+                    {
+                _tx_jam_code_flag = state ;
+                    }
+
+        bool CIVController::get_tx_jam_code_flag()
+                  {
+              return _tx_jam_code_flag ;
+                  }
+
+      void CIVController::set_rx_jam_code_flag(bool state)
+                    {
+                _rx_jam_code_flag = state ;
+                    }
+
+        bool CIVController::get_rx_jam_code_flag()
+                {
+                  return _rx_jam_code_flag ;
+                }
+
+    bool CIVController::get_CI_V_TX_HOLDOFF_flag()  // .. decrements the time 2 live counter and returns state
+        {
+          if (_CI_V_time2live > 0 )
+            {
+              _CI_V_time2live-- ;    // each time 'read' decrement until zero
+              _CI_V_TX_HOLDOFF_flag = true ;
+            }
+              //  if (_time2live <= 0 )
+          else
+              {
+              _CI_V_time2live = 0 ;
+              _CI_V_TX_HOLDOFF_flag = false ;
+              }
+          return _CI_V_TX_HOLDOFF_flag ;
+        }
+
+      byte CIVController::set_CI_V_TX_HOLDOFF_counter(byte count)  // sets the time 2 live counter
+          {
+            _CI_V_time2live = count ;
+        // load time to live with ZERO to clear flag i.e. to block the inhib and allow Network listening
+                  // or
+            // load time to live with the number of loops to inhibit
+
+        if (_CI_V_time2live > 0)    // allow seting this to zero to s
+                {
+                  _CI_V_TX_HOLDOFF_flag = true ;
+                  // i.e. inhibit ( dont allow Network Listen )
+                }
+                // if (_time2live <= 0 )
+        else
+                  {
+                  _CI_V_time2live =0 ;
+                  _CI_V_TX_HOLDOFF_flag = false ;
+                  }
+
+
+
+        return _CI_V_time2live ;
+          }
+
+          byte CIVController::read_CI_V_TX_HOLDOFF_counter()  // read the time 2 live value
+                    {
+                      return _CI_V_time2live ;
+
+                    }
+
+
+
+/*******************************************************************************
+ * Author: Robert S. French <rfrench@rfrench.org>
+ * Derived from work by John Rowling
+ *
+ * This work is licensed under the Creative Commons Attribution-NonCommercial
+ * 4.0 International License. To view a copy of this license, visit
+ * http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to Creative
+ * Commons, PO Box 1866, Mountain View, CA 94042, USA.
+ ******************************************************************************/
 
 byte ci_v_rx_DATA[15] =   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
@@ -60,20 +276,18 @@ byte ci_v_TX1_RX1_MESSAGEs[35][14] = {
      // {   9,  6,   0x14,   0x0D,  0x00,  0x00,  0xFD,      0,     0,     0,    0,    0,    0,   1}  // 44 ... set NOTCH POSITION 0 - 255     ditto
 };
 
-// start of tab B new CI-V in ( unsolicited messages)
-byte read_Unsolicited_Message()
-//Unsolicited_CI_V_input()
-{           //CI_V in
-             #ifdef MEGA2560
+byte CIVController::read_unsolicited_message()
+{
+#ifdef MEGA2560
   BlueLED.on();
-             #endif
+#endif
   delay(1);
-             #ifdef MEGA2560
+#ifdef MEGA2560
   BlueLED.off();
-             #endif
+#endif
   boolean message_flag = false;
   byte count = 0;
-  byte last_incoming_FD =0;
+  byte last_incoming_FD = 0;
   byte frame_end_FD_count = 0;
   byte frame_start_FE_count = 0;
   byte packet_terminator_count = 0;
@@ -89,8 +303,8 @@ byte read_Unsolicited_Message()
   //      CI_V Received ???
   //  *******************************************************
 
-      #ifdef MEGA2560
-  while (Serial1.available() > 0)       // while bytes from CI-V intrefaceare waiting to be read do it
+#ifdef MEGA2560
+  while (Serial1.available() > 0)
   {
     message_flag = true;
     incoming_TTL1_Byte = Serial1.read();      // get first or next byte  <<<---------------------
@@ -148,87 +362,42 @@ byte read_Unsolicited_Message()
   {
 
   }
-             #endif
+ #endif /* MEGA2560 */
 
-             #ifdef PRO_MINI
-  while (Serial.available() > 0)             // while bytes from CI-V intrefaceare waiting to be read do it
+ #ifdef PRO_MINI
+  while (Serial.available() > 0)
   {
     message_flag = true;
-    incoming_TTL1_Byte = Serial.read();            // get first or next byte
-    // <<<--------------------- saves incoming byte in 'incoming_TTL1_Byte' variable
-    RX1_MESSAGE_BUFFER[count] = incoming_TTL1_Byte;             // copy incomming byte into an rx array
+    incoming_TTL1_Byte = Serial.read();
+    RX1_MESSAGE_BUFFER[count] = incoming_TTL1_Byte;
     ci_v_ring_Buffer.push(RX1_MESSAGE_BUFFER[count]);
-    count++;            // count bytes
-    if ( count >= 46 ) { break; }            // bug out  was 46 for 4 lines
+    count++;
+    if (count >= 46) { break; }            // bug out  was 46 for 4 lines
     // of CI-v messages but lost part of third line after 23 chars
-  }             // end of while
-  if ( message_flag == true )
-  {          //begin_if message flag
-
-    startMillis=millis();
+  }
+  if (message_flag)
+  {
+    startMillis = millis();
     message_flag = false;
-    //  *******************************************************
-    //        read the packet into packetBufffer
-    //  *******************************************************
 
-    //  ************************************************************************************************************
-    //             format check
-    //  ************************************************************************************************************
-
-    for (int i=0; i<=47; i++)          // begin_for copy
+    for (int i=0; i<=47; i++)
     {
       // now print & simple check on what was SENT
-      if ( byte(RX1_MESSAGE_BUFFER[i]) == 0xFD ) {
+      if (byte(RX1_MESSAGE_BUFFER[i]) == 0xFD)
+      {
         frame_end_FD_count++;
         last_incoming_FD = i+1;
-        //Soft_Serial.println ('.') ;
       }
-      if(byte(RX1_MESSAGE_BUFFER[i]) ==0xFE)              // look for FE
+      if (byte(RX1_MESSAGE_BUFFER[i]) == 0xFE)
       {
         frame_start_FE_count++;
-        // this should be even and twice the FD count
       }
-    }                 // end of for copy
-  }          //message flag true
-  else
-  {
-
+    }
   }
-            #endif
+#endif /* PRO_MINI */
+
   return count;
-}        // end of CI_V listen
-
-
-// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-//  TT TT TT TT TT TT TT TT      XX XX XX    XX XX XX
-//      TT         XX        XX
-//      TT           XX     XX
-//      TT            XX         XX
-//      TT              XX      XX
-//      TT          XX  XX
-//      TT           XX      XX
-//      TT            XX    XX
-//      TT               XX
-//      TT                XX
-//      TT             XX  XX
-//      TT            XX     XX
-//      TT           XX       XX
-//      TT          XX   XX
-//      TT               XX     XX
-//      TT              XX       XX
-//      TT         XX XX XX    XX XX XX
-//
-// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-
-// end of tab B (unsolicited)
-
-// start of tab C CI-V comms ( basically TX via serial1)
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-//   TX serial 1 FUNCTION
-//  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-//
+}
 
 byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
 // note : this function returns the DATA VALID FLAG
@@ -256,8 +425,7 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
     return 0;
   }    //\\02 block TX of '0th' table entry
   //  *******************************
-  if (Arduino.get_CI_V_TX_inhibit_flag()
-      == false)
+  if (!CIV.get_CI_V_TX_inhibit_flag())
   { //03 false... then TX is permitted  -------------------------------------------------------------------------------03------->>>
 
     //  *******************************
@@ -336,7 +504,7 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
       }                //\\09
     }       //\\08 end for loop
 
-    Soft_Serial.print ( "TX1 (5335):  ");
+    host_print ( "TX1 (5335):  ");
     //    *************************************************************
     //  NOW SEND the whole CI-V TX1_MESSAGE_BUFFER
     //    *************************************************************
@@ -350,14 +518,14 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
       if ( byte(TX1_MESSAGE_BUFFER[i]) <10 )
       {
 
-        Soft_Serial.print ("0");    // print leading zero
-        Soft_Serial.print (byte(TX1_MESSAGE_BUFFER[i]),HEX);
-        Soft_Serial.print (" ");
+        host_print ("0");    // print leading zero
+        host_print (byte(TX1_MESSAGE_BUFFER[i]),HEX);
+        host_print (" ");
       }
 
       else {
-        Soft_Serial.print( byte(TX1_MESSAGE_BUFFER[i]),HEX);
-        Soft_Serial.print (" ");
+        host_print( byte(TX1_MESSAGE_BUFFER[i]),HEX);
+        host_print (" ");
       }
 
 
@@ -372,7 +540,7 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
       }      //\\11
     }         //\\10 end for loop
 
-    Soft_Serial.println();
+    host_println();
 
 
         #endif  // -pro mini
@@ -381,19 +549,19 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
     //        CI_V message sent  - now set TX flags
     // *********************************************************
     // set flags...  moved from tab A 'main loop'
-    Arduino.set_CI_V_TX_inhibit_flag(true);        // STOP further tx until a VALID loop back
+    CIV.set_CI_V_TX_inhibit_flag(true);        // STOP further tx until a VALID loop back
     // AND reply received and checked
     // i.e. TX is a ONE SHOT until inhibit flipped
-    Arduino.set_just_sent_CI_V_message_flag(true);         // we have 'just sent' a message
+    CIV.set_just_sent_CI_V_message_flag(true);         // we have 'just sent' a message
     //(loop back needs to be veirfied)
-    Arduino.set_listen_for_CI_V_message_flag(false);          //  stop listen ... don't
+    CIV.set_listen_for_CI_V_message_flag(false);          //  stop listen ... don't
     //transfer any othe recived bytes into
     //'our' rx buffer until processing / checking / validation process completed
 
     // *********************************************************
     //  start hold off counter : 6 loops  ?    need to limit polling to about 300ms intervals
     // *********************************************************
-    Arduino.set_CI_V_TX_HOLDOFF_counter(HOLDOFF_RATIO);        // e.g. 20 ... now cannot send a
+    CIV.set_CI_V_TX_HOLDOFF_counter(HOLDOFF_RATIO);        // e.g. 20 ... now cannot send a
     //polling message for 20 loops
 
     // *********************************************************
@@ -403,7 +571,7 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
 
   }   //\\03 eof  TX inhibit false  <<<-----------------------------------------------------------------------------------------<<<---03
 
-  else {           //12 skip through when ...Arduino.get_CI_V_TX_inhibit_flag() == false
+  else {           //12 skip through when ...CIV.get_CI_V_TX_inhibit_flag() == false
 
     return;           // normally drop past here to RX  below  OR exit  function when X inhib
     //was true ( during HOLD OFF loops )
@@ -441,7 +609,7 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
 
             #ifdef PRO_MINI
 
-  Soft_Serial.print ( "RX1 (5440): ");
+  host_print ( "RX1 (5440): ");
   while (Serial.available() > 0)               //read AND copy and EMPTY   all bytes in buffer ... that will be SENT message and Reply message from buffer
   {              //14
 
@@ -453,21 +621,21 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
     if ( byte(RX1_MESSAGE_BUFFER[rx_count]) <10 )
     {
 
-      Soft_Serial.print ("0");
-      Soft_Serial.print (byte(RX1_MESSAGE_BUFFER[rx_count]),HEX);
-      Soft_Serial.print (" ");
+      host_print ("0");
+      host_print (byte(RX1_MESSAGE_BUFFER[rx_count]),HEX);
+      host_print (" ");
     }
 
     else {
-      Soft_Serial.print( byte(RX1_MESSAGE_BUFFER[rx_count]),HEX);
-      Soft_Serial.print (" ");
+      host_print( byte(RX1_MESSAGE_BUFFER[rx_count]),HEX);
+      host_print (" ");
     }
 
 
     rx_count++;          // count them
   }               //\\14 end of while
 
-  Soft_Serial.println();
+  host_println();
 
             #endif // -pro mini
 
@@ -484,21 +652,21 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
 
   if ( rx_count >= tx_count )
   {                //15
-    Arduino.set_TX_MESSAGE_NOT_CORRUPT_flag(true);           //assume it's ok
+    CIV.set_TX_MESSAGE_NOT_CORRUPT_flag(true);           //assume it's ok
     //... maybe qualify that e.g. if RXcount >= TX count set it true
   }                //\\16
 
   for (int i=0; i<tx_count; i++)           //
   // i steps through first part of the array  which is the TX message  .......................WHAT if TX=0 and RX=0 ?
   {          //17
-    // move this to RX check below Arduino.set_TX_MESSAGE_NOT_CORRUPT_flag(true) ;
+    // move this to RX check below CIV.set_TX_MESSAGE_NOT_CORRUPT_flag(true) ;
     // set flag to true - i.e. assume ok unless error detectec in 'compare' below
     // RX1_MESSAGE BUFFER will contain TX'd and RX'd message
     if (RX1_MESSAGE_BUFFER[i]
         != TX1_MESSAGE_BUFFER[i])           // if not same PRINT SIDE BY SIDE
     {      //18
 
-      Arduino.set_TX_MESSAGE_NOT_CORRUPT_flag(false);         // assume it is false if
+      CIV.set_TX_MESSAGE_NOT_CORRUPT_flag(false);         // assume it is false if
       //rx and tx lenght are same ?  or always until proven ?
 
             #ifdef MEGA2560
@@ -518,17 +686,17 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
             #endif
 
             #ifdef PRO_MINI
-      //Soft_Serial.println(" collisssion !!! "); // create collision error if TX and looped RX are different
-      Soft_Serial.print ( "TX1 :  ");
+      //host_println(" collisssion !!! "); // create collision error if TX and looped RX are different
+      host_print ( "TX1 :  ");
       for (int i=0; i<tx_count; i++)
       {                  //21
-        Soft_Serial.print(TX1_MESSAGE_BUFFER[i],HEX);
+        host_print(TX1_MESSAGE_BUFFER[i],HEX);
       }                  //\\21
-      Soft_Serial.println();
-      Soft_Serial.print ( "RX1 : ");
+      host_println();
+      host_print ( "RX1 : ");
       for (int i=0; i<tx_count; i++)
       {                  //22
-        Soft_Serial.print (RX1_MESSAGE_BUFFER[i],HEX);
+        host_print (RX1_MESSAGE_BUFFER[i],HEX);
       }                  //\\22
             #endif
 
@@ -536,13 +704,13 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
     else
     {      //23
 
-      Arduino.set_TX_MESSAGE_NOT_CORRUPT_flag(true);         // assume it is false if rx and tx lenght are same ?
+      CIV.set_TX_MESSAGE_NOT_CORRUPT_flag(true);         // assume it is false if rx and tx lenght are same ?
       //or always until proven ?
     }      //\\23
 
   }
 
-  if (Arduino.get_TX_MESSAGE_NOT_CORRUPT_flag() == true)
+  if (CIV.get_TX_MESSAGE_NOT_CORRUPT_flag() == true)
   //  move all the stuss below into here
   {                      //24
                            #ifdef MEGA2560
@@ -553,7 +721,7 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
 
 
                           #ifdef PRO_MINI
-    Soft_Serial.println ( "TX1 :  good ");
+    host_println ( "TX1 :  good ");
 
                           #endif
 
@@ -571,7 +739,7 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
   // ************    NOW process received CI-V data payloads    ******
   // *****************************************************************
 
-  if (( Arduino.get_TX_MESSAGE_NOT_CORRUPT_flag() == true)
+  if (( CIV.get_TX_MESSAGE_NOT_CORRUPT_flag() == true)
       & ( rx_count >0 )& (tx_count > 0)  )
 
 
@@ -616,7 +784,7 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
     }         //\\28
 
     if ( RX1_MESSAGE_BUFFER[ TOat ]  == 0xE0 )
-    {        //29  is this value  = CONTROLLER ID ?
+    {        //29  is this value  = controller ID ?
       Icom.set_to_flag (true);
     }        //\\29
 
@@ -685,14 +853,14 @@ byte tx_ci_v_via_serial_ttl (byte sender)    // 'sender' is the CI-V CMD byte
 
   // wrong logic here ?
 
-  Arduino.set_CI_V_TX_inhibit_flag(true);                // stop further tx
+  CIV.set_CI_V_TX_inhibit_flag(true);                // stop further tx
 
-  Arduino.set_just_sent_CI_V_message_flag(false);                 // no longer true buffers now empty
+  CIV.set_just_sent_CI_V_message_flag(false);                 // no longer true buffers now empty
 
-  Arduino.set_listen_for_CI_V_message_flag(true);            //  stop listen ... don't transfer any othe
+  CIV.set_listen_for_CI_V_message_flag(true);            //  stop listen ... don't transfer any othe
   //recived bytes into 'our' rx buffer until processing / checking / validation process completed
 
-  return Arduino.get_TX_MESSAGE_NOT_CORRUPT_flag();             // change this to an aggregate flag that indicates the data is valid
+  return CIV.get_TX_MESSAGE_NOT_CORRUPT_flag();             // change this to an aggregate flag that indicates the data is valid
 
 }      // 01 end of serial ttl tx function - which SENDS CI-V data to the One Wire Bus  <<<<<<<<---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
