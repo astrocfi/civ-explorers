@@ -198,6 +198,7 @@ byte LEDArcBoard::_convert_val_to_index(int16_t val)
 
 // Convert an index (0=off, 1-8 or 1-16=LED number from low to high)
 // to a bitmask that has all the bits from the index down to 0 set.
+// This is a generic helper function so no need to make it part of the class.
 uint16_t _index_to_arc_bitmask(byte index)
 {
   if (index >= 16) // Separate case since 1<<index might overflow on 16
@@ -209,6 +210,7 @@ uint16_t _index_to_arc_bitmask(byte index)
 
 // Convert an index (0=off, 1-8 or 1-16=LED number from low to high)
 // to a bitmask with a single bit set for that index.
+// This is a generic helper function so no need to make it part of the class.
 uint16_t _index_to_single_bitmask(byte index)
 {
   if (index > 0)

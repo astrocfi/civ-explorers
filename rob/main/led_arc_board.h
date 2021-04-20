@@ -80,7 +80,7 @@ class LEDArcBoard
     // units", which will be mapped later in some manner to the particular LED
     // positions.
     void set_current_val(int16_t cur_val);
-    uint16_t get_current_val();
+    int16_t get_current_val();
 
     // Change the LED brightness (0-255). Higher values are dimmer.
     void set_led_brightness(byte pwm);
@@ -110,7 +110,7 @@ class LEDArcBoard
     unsigned long get_peak_ttl();
 
   private:
-    byte _convert_val_to_index(byte val);
+    byte _convert_val_to_index(int16_t val);
 
     byte _id; // Unique ID of this board
     int16_t _cur_val; // The most recently set value to display
